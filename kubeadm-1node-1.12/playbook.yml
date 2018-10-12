@@ -1,0 +1,85 @@
+- hosts: all
+  become: yes
+  become_method: sudo
+  tasks: 
+  - name: correct hosts file
+    replace:
+      path: /etc/hosts 
+      regexp: '^127.0.0.1\t{{ansible_hostname}}\t{{ansible_hostname}}$' 
+      replace: '{{ ansible_eth0["ipv4"]["address"] }}\t{{ansible_hostname}}\t{{ansible_hostname}}'
+  - name: disable firewalld
+    service:
+      name: docker
+      state: stopped
+  - name: disable swap forever
+    replace:
+      path: /etc/fstab
+      regexp: '^([^#].*swap.*)$'
+      replace: '#\1'
+    register: swap_result
+  - name: disable swap command 
+    command: swapoff -a
+    when: swap_result is changed
+  - name: disable selinux forever
+    replace:
+      path: /etc/selinux/config
+      regexp: 'SELINUX=enforcing'
+      replace: 'SELINUX=permissive'
+    register: selinux_result
+  - name: disable selinux command
+    command: setenforce 0
+    when: selinux_result is changed
+  - name: enable docker-ce repository
+    yum_repository:
+      name: docker-ce
+      baseurl: https://download.docker.com/linux/centos/7/$basearch/stable
+      enabled: true
+      description: docker-ce repo
+      state: present
+      gpgcheck: false
+  - name: install docker-ce to 17.06
+    yum:
+      state: installed
+      name: docker-ce-17.06.2.ce
+    async: 2000
+    poll: 5
+    notify: running docker-ce
+  - name: upload http-proxy config file
+    copy:
+      src: files2upload/http-proxy.conf
+      dest: /etc/systemd/system/docker.service.d/
+    notify: running docker-ce
+  - name: upload ca crt file
+    copy:
+      src: files2upload/ca.crt
+      dest: /etc/pki/ca-trust/source/anchors/
+  - name: upload k8s repo
+    copy: 
+      src: files2upload/kubernetes.repo
+      dest: /etc/yum.repos.d/kubernetes.repo 
+  - name: upload k8s.conf
+    copy:
+      src: files2upload/k8s.conf
+      dest: /etc/sysctl.d/k8s.conf
+  - name: trust ca 
+    command: update-ca-trust extract
+    when: swap_result is changed
+    notify: running docker-ce
+  - name: apply k8s conf
+    command: sysctl --system
+    when: swap_result is changed
+  - name: install kubeadm kubectl kubelet
+    yum:
+      name:
+      - kubeadm
+      - kubectl 
+      - kubelet
+      disable_excludes: all
+    async: 2000
+    poll: 5
+  handlers:
+  - name: running docker-ce
+    systemd:
+      name: docker
+      enabled: yes
+      state: started

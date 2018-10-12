@@ -1,0 +1,39 @@
+- hosts: all
+  become: yes
+  become_method: sudo
+  tasks: 
+  - name: config hosts
+    shell: sed -i '/{{ansible_hostname}}/d' /etc/hosts || true &&  echo -e '{{ ansible_eth0["ipv4"]["address"] }}\t{{ansible_hostname}}\t{{ansible_hostname}}' >> /etc/hosts 
+  - name: enable docker-ce repository
+    yum_repository:
+      name: docker-ce
+      baseurl: https://download.docker.com/linux/centos/7/$basearch/stable
+      enabled: true
+      description: docker-ce repo
+      state: present
+      gpgcheck: false
+  - name: install docker-ce to 17.06
+    yum:
+      state: installed
+      name: docker-ce-17.06.2.ce
+    async: 2000
+    poll: 5
+    notify: running docker-ce
+  - name: upload http-proxy config file
+    copy:
+      src: files2upload/http-proxy.conf
+      dest: /etc/systemd/system/docker.service.d/
+    notify: running docker-ce
+  - name: upload ca crt file
+    copy:
+      src: files2upload/ca.crt
+      dest: /etc/pki/ca-trust/source/anchors/
+  - name: trust ca 
+    command: update-ca-trust extract
+    notify: running docker-ce
+  handlers:
+  - name: running docker-ce
+    systemd:
+      name: docker
+      enabled: yes
+      state: started
