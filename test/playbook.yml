@@ -9,7 +9,7 @@
       replace: '{{ ansible_eth0["ipv4"]["address"] }}\t{{ansible_hostname}}\t{{ansible_hostname}}'
   - name: disable firewalld
     service:
-      name: docker
+      name: firewalld
       state: stopped
   - name: disable swap forever
     replace:
@@ -43,45 +43,20 @@
       name: docker-ce-17.06.2.ce
     async: 2000
     poll: 5
-    notify: running docker-ce
   - name: upload http-proxy config file
     copy:
       src: files2upload/http-proxy.conf
       dest: /etc/systemd/system/docker.service.d/
-    notify: running docker-ce
   - name: upload ca crt file
     copy:
       src: files2upload/ca.crt
       dest: /etc/pki/ca-trust/source/anchors/
-  - name: upload k8s repo
-    copy: 
-      src: files2upload/kubernetes.repo
-      dest: /etc/yum.repos.d/kubernetes.repo 
-  - name: upload k8s.conf
-    copy:
-      src: files2upload/k8s.conf
-      dest: /etc/sysctl.d/k8s.conf
   - name: trust ca 
     command: update-ca-trust extract
     when: swap_result is changed
-    notify: running docker-ce
   - name: apply k8s conf
     command: sysctl --system
     when: swap_result is changed
-  - name: install kubeadm kubectl kubelet
-    yum:
-      name:
-      - kubeadm
-      - kubectl 
-      - kubelet
-      disable_excludes: all
-    async: 2000
-    poll: 5
-  - name: running kubelet
-    systemd:
-      name: kubelet
-      enabled: yes
-      state: started
   - name: running docker-ce
     systemd:
       name: docker
