@@ -55,6 +55,9 @@
     copy:
       src: files2upload/ca.crt
       dest: /etc/pki/ca-trust/source/anchors/
+  - name: trust ca
+    command: update-ca-trust extract
+    when: swap_result is changed
   - name: running docker-ce
     systemd:
       name: docker
