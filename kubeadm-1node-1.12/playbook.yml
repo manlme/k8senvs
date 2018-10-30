@@ -61,8 +61,8 @@
       dest: /etc/sysctl.d/k8s.conf
   - name: upload daemon.json
     copy:
-      src: files2upload/k8s.conf
-      dest: /etc/sysctl.d/k8s.conf
+      src: files2upload/daemon.json
+      dest: /etc/docker/
   - name: trust ca 
     command: update-ca-trust extract
     when: swap_result is changed
@@ -87,4 +87,5 @@
     systemd:
       name: docker
       enabled: yes
+      daemon_reload: true
       state: started
